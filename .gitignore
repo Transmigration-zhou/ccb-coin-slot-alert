@@ -4,3 +4,9 @@ __pycache__/
 .DS_Store
 .cookie_state.json
 .monitor.pid
+config.json
+cookie.txt
+logs/
+.monitor.lock
+.cookie_state.json.tmp
+.pytest_cache/
