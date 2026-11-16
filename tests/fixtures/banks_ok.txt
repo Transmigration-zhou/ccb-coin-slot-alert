@@ -1,0 +1,6 @@
+<script type="text/javascript">
+var banks = [{WDMC:'中国建设银行杭州滨江支行',WDDH:'0571-00000001',JNBZS:'5',YYSJ:'09:00-17:00'},
+{WDMC:'中国建设银行杭州高新支行',WDDH:'0571-00000002',JNBZS:'0',YYSJ:'09:00-17:00'},
+{WDMC:'中国建设银行{测试}分理处',WDDH:'0571-00000003',JNBZS:'0',WDDZ:'滨江区某路1号'}];
+var other = 1;
+</script>
