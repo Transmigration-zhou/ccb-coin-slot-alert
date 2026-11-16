@@ -44,6 +44,7 @@ class FakeSession:
     def reload_from_cookie_file(self):
         self.reloads += 1
         self.loaded_mtime = self.mtime
+        return True
 
     def cookie_values(self):
         return ["sess1"]
@@ -183,7 +184,7 @@ def test_cookie_change_triggers_reload_and_immediate_round(env):
     rounds = []
     orig = m.run_round
 
-    def counting_round():
+    def counting_round(stop_arg=None):
         rounds.append(env.time.now)
         if len(rounds) == 3:
             stop.set()
@@ -220,3 +221,78 @@ def test_gap_and_jitter_used_when_configured(env):
     out = m.run_round()
     assert env.time.sleeps == [1.5, 1.5]
     assert m.next_delay(out) == 15
+
+
+def test_reload_rearms_session_alert(env):
+    s = FakeSession({"330102": [ERR, ERR]})
+    m = env.build(s)
+    m.run_round()
+    s.mtime = 2.0
+    stop = threading.Event()
+    env.time.on_sleep = lambda t: stop.set()
+    m._wait(600, stop)
+    m.run_round()
+    invalid = [a for a in env.alerts if "会话可能已失效" in a.title]
+    assert s.reloads == 1 and len(invalid) == 2
+
+
+def test_reload_failure_notifies(env):
+    from coin_alert.config import ConfigError
+    s = FakeSession()
+
+    def bad_reload():
+        raise ConfigError("cookie.txt 中没有 JSESSIONID")
+    s.reload_from_cookie_file = bad_reload
+    m = env.build(s)
+    s.mtime = 2.0
+    stop = threading.Event()
+    env.time.on_sleep = lambda t: stop.set()
+    m._wait(10, stop)
+    assert any("JSESSIONID" in a.message for a in env.alerts)
+
+
+def test_exception_outside_round_does_not_kill_loop(env):
+    s = FakeSession()
+    calls = {"n": 0}
+
+    def flaky_mtime():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("boom")
+        return s.mtime
+    s.cookie_file_mtime = flaky_mtime
+    m = env.build(s)
+    stop = threading.Event()
+    rounds = []
+    orig = m.run_round
+    m.run_round = lambda stop_arg=None: (rounds.append(1), stop.set() if len(rounds) == 2 else None, orig())[2]
+    m.run_forever(stop)
+    assert len(rounds) == 2
+
+
+def test_stop_checked_between_districts(env):
+    stop = threading.Event()
+    s = FakeSession({"330102": [stock("A", 5)]})
+    orig = s.query
+
+    def query(code):
+        stop.set()
+        return orig(code)
+    s.query = query
+    m = env.build(s)
+    m.run_round(stop)
+    assert s.queried == ["330102"]
+
+
+def test_health_alerts_batched_per_round(env):
+    m = env.build(FakeSession({c: [(503, "x")] * 3 for c in ("330102", "330105", "330106")}))
+    for _ in range(3):
+        m.run_round()
+    assert len(env.alerts) == 1
+    assert all(n in env.alerts[0].message for n in ("上城区", "拱墅区", "西湖区"))
+
+
+def test_alerts_are_logged(env, caplog):
+    m = env.build(FakeSession({"330102": [ERR]}))
+    m.run_round()
+    assert any(r.levelname == "ERROR" and "会话可能已失效" in r.getMessage() for r in caplog.records)

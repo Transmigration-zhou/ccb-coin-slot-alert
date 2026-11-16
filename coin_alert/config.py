@@ -124,9 +124,11 @@ def parse_cookie_text(text: str) -> Dict[str, str]:
 
 def read_cookie_file(path: Path) -> Dict[str, str]:
     try:
-        text = Path(path).read_text(encoding="utf-8")
+        text = Path(path).read_text(encoding="utf-8-sig")   # utf-8-sig 顺带去掉编辑器加的 BOM
     except FileNotFoundError:
         raise ConfigError(f"找不到 {path}，请把浏览器复制的 Cookie 整行粘贴到 cookie.txt") from None
+    except UnicodeDecodeError:
+        raise ConfigError(f"{path} 不是 UTF-8 编码，请用纯文本（UTF-8）重新保存") from None
     except OSError as e:
         raise ConfigError(f"无法读取 {path}：{e}") from None
     cookies = parse_cookie_text(text)

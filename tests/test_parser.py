@@ -82,3 +82,14 @@ def test_redirect():
 
 def test_server_error():
     assert parse_response(503, "x") == HttpError(503)
+
+
+def test_unparseable_value_keeps_rest_of_bank():
+    r = parse_response(200, "var banks=[{WDMC:'a',JNBZS:'1',X:undefined,WDDH:'0571'}];")
+    assert r.parse_errors == 1
+    assert r.banks[0].name == "a" and r.banks[0].count == 1 and r.banks[0].phone == "0571"
+
+
+def test_nested_value_keeps_rest_of_bank():
+    r = parse_response(200, "var banks=[{WDMC:'a',EXT:{k:fn(1,2)},JNBZS:'3'}];")
+    assert r.banks[0].count == 3 and r.parse_errors == 1

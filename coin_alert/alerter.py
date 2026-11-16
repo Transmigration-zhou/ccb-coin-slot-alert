@@ -72,6 +72,10 @@ class HealthTracker:
             sound=SOUND_BAD,
         )
 
+    def session_reset(self) -> None:
+        """用户换了新 Cookie：重新"上膛"，新 Cookie 仍然无效时要再提醒一次。"""
+        self._session_alerted = False
+
     def session_ok(self) -> Optional[Alert]:
         if not self._session_alerted:
             return None
@@ -113,3 +117,12 @@ class HealthTracker:
             return None
         self._parse_alerted.discard(district)
         return Alert(title="建行纪念币监控已恢复", message=f"「{district}」网点数据解析已恢复正常", sound=SOUND_GOOD)
+
+
+def combine_alerts(alerts: List[Alert]) -> Alert:
+    """同一轮产生的多条状态告警合成一条通知，避免一次断网弹出一串通知。"""
+    if len(alerts) == 1:
+        return alerts[0]
+    body = "\n".join(f"【{a.title}】{a.message}" for a in alerts)
+    sound = SOUND_BAD if any(a.sound == SOUND_BAD for a in alerts) else SOUND_GOOD
+    return Alert(title=f"建行纪念币监控：{len(alerts)} 条状态变化", message=body[:MAX_MESSAGE_LEN], sound=sound)

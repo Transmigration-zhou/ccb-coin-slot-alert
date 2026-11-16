@@ -31,6 +31,11 @@ def _resolve(binary: str) -> Optional[str]:
     return shutil.which(binary)
 
 
+def available(binary: str = TERMINAL_NOTIFIER) -> bool:
+    """启动时检查通知程序是否可用，避免等到第一次告警才发现发不出去。"""
+    return _resolve(binary) is not None
+
+
 def notify(title: str, message: str, sound: Optional[str] = None, binary: str = TERMINAL_NOTIFIER) -> bool:
     """发一条系统通知。失败只记日志、不抛异常。"""
     global _warned_missing

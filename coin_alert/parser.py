@@ -107,14 +107,14 @@ def _parse_banks(array: str) -> Ok:
         if not chunk.startswith("{"):
             errors.append(_snippet(chunk))
             continue
-        try:
-            raw = _parse_object(chunk[1:-1])
-        except ValueError:
+        raw, bad_fields = _parse_object(chunk[1:-1])
+        if not raw:                      # 一个字段都认不出来：只记错误，不造一个空网点
             errors.append(_snippet(chunk))
             continue
         count = parse_count(raw.get("JNBZS"))
-        if count is None:
+        if bad_fields or count is None:
             errors.append(_snippet(chunk))
+        if count is None:
             count = 0
         banks.append(Bank(name=str(raw.get("WDMC") or ""), count=count,
                           phone=str(raw.get("WDDH") or ""), raw=raw))
@@ -217,31 +217,64 @@ def _read_value(s: str, i: int) -> Tuple[Any, int]:
     raise ValueError(f"无法识别的值：{s[i:i + 20]!r}")
 
 
-def _parse_object(body: str) -> Dict[str, Any]:
-    """解析 {} 内部的 "键: 值, 键: 值"。"""
+def _skip_field(s: str, i: int) -> int:
+    """从 i 开始跳到下一个顶层逗号（引号、括号内的逗号不算），返回逗号下标或结尾。"""
+    depth = 0
+    quote = None
+    while i < len(s):
+        c = s[i]
+        if quote:
+            if c == "\\":
+                i += 1
+            elif c == quote:
+                quote = None
+        elif c in "'\"":
+            quote = c
+        elif c in "[{(":
+            depth += 1
+        elif c in "]})":
+            depth -= 1
+        elif c == "," and depth <= 0:
+            return i
+        i += 1
+    return i
+
+
+def _parse_object(body: str) -> Tuple[Dict[str, Any], int]:
+    """解析 {} 内部的 "键: 值, 键: 值"。认不出的字段跳过并计数，其余字段照常保留——
+    这样服务端以后加了一个奇怪的字段，也不会让整个网点（连同余量）被丢掉。"""
     result: Dict[str, Any] = {}
+    bad = 0
     i = 0
     n = len(body)
     while True:
         while i < n and (body[i].isspace() or body[i] == ","):
             i += 1
         if i >= n:
-            return result
-        if body[i] in "'\"":
-            key, i = _read_string(body, i)
+            return result, bad
+        field_start = i
+        try:
+            key, i = _read_key(body, i)
+            value, i = _read_value(body, i)
             while i < n and body[i].isspace():
                 i += 1
-            if i >= n or body[i] != ":":
-                raise ValueError("键后缺少冒号")
+            if i < n and body[i] != ",":
+                raise ValueError(f"值后出现多余内容：{body[i:i + 20]!r}")
+            result[key] = value
+        except ValueError:
+            bad += 1
+            i = _skip_field(body, field_start)
+
+
+def _read_key(body: str, i: int) -> Tuple[str, int]:
+    if body[i] in "'\"":
+        key, i = _read_string(body, i)
+        while i < len(body) and body[i].isspace():
             i += 1
-        else:
-            m = _KEY.match(body, i)
-            if not m:
-                raise ValueError(f"无法识别的键：{body[i:i + 20]!r}")
-            key, i = m.group(1), m.end()
-        value, i = _read_value(body, i)
-        result[key] = value
-        while i < n and body[i].isspace():
-            i += 1
-        if i < n and body[i] != ",":
-            raise ValueError(f"值后出现多余内容：{body[i:i + 20]!r}")
+        if i >= len(body) or body[i] != ":":
+            raise ValueError("键后缺少冒号")
+        return key, i + 1
+    m = _KEY.match(body, i)
+    if not m:
+        raise ValueError(f"无法识别的键：{body[i:i + 20]!r}")
+    return m.group(1), m.end()

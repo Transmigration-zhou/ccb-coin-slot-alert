@@ -24,6 +24,7 @@ from typing import List, Optional
 import requests
 
 from coin_alert import notifier
+from coin_alert.alerter import Alert
 from coin_alert.config import Config, ConfigError, ensure_private, load_config
 from coin_alert.lock import LockHeld, ProcessLock
 from coin_alert.log import setup_logging
@@ -106,25 +107,46 @@ def cmd_once(config: Config, redact, district: Optional[str]) -> int:
         return code
 
 
-def cmd_monitor(config: Config, redact) -> int:
-    stop = threading.Event()
-
-    def handle_signal(signum, _frame):
-        logger.info("收到退出信号（%s），正在退出…", signal.Signals(signum).name)
+def install_signal_handlers(stop: threading.Event) -> None:
+    """SIGINT / SIGTERM / SIGHUP 都改为"设置 stop、跑完清理再退出"。
+    - 第二次 Ctrl+C 直接抛 KeyboardInterrupt，不用等当前请求结束；
+    - 用 nohup 启动时 SIGHUP 已被忽略，保持忽略，关掉终端不会让监控退出。"""
+    def handle(signum, _frame):
+        if stop.is_set() and signum == signal.SIGINT:
+            raise KeyboardInterrupt
+        logger.info("收到退出信号（%s），正在退出…（再按一次 Ctrl+C 立即退出）", signal.Signals(signum).name)
         stop.set()
 
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
-        signal.signal(sig, handle_signal)
+        if sig == signal.SIGHUP and signal.getsignal(sig) == signal.SIG_IGN:
+            continue
+        signal.signal(sig, handle)
+
+
+def send(alert) -> bool:
+    return notifier.notify(alert.title, alert.message, alert.sound)
+
+
+def cmd_monitor(config: Config, redact) -> int:
+    stop = threading.Event()
+    install_signal_handlers(stop)
+    if not notifier.available():
+        logger.error("未找到 %s：有货和失效提醒都无法弹出系统通知，只会写日志！安装：brew install terminal-notifier",
+                     notifier.TERMINAL_NOTIFIER)
 
     alarm = notifier.Alarm()
     with ProcessLock(config.lock_file):
         session = CcbSession(config)
         redact.set_secrets([config.crdt_no] + session.cookie_values())
-        monitor = Monitor(config, session,
-                          notify=lambda a: notifier.notify(a.title, a.message, a.sound),
-                          alarm=alarm, redact=redact)
+        monitor = Monitor(config, session, notify=send, alarm=alarm, redact=redact)
         try:
             monitor.run_forever(stop)
+        except BaseException as e:
+            if not isinstance(e, KeyboardInterrupt):
+                logger.exception("监控意外退出")
+                send(Alert(title="建行纪念币监控已停止", message=f"监控意外退出：{type(e).__name__}，请查看日志并重新启动",
+                           sound="Basso"))
+            raise
         finally:
             alarm.stop()
     logger.info("程序已退出")
@@ -143,6 +165,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     except (ConfigError, LockHeld, UnknownRegionError) as e:
         print(str(e), file=sys.stderr)
         return EXIT_FAIL
+    except KeyboardInterrupt:
+        print("\n已强制退出", file=sys.stderr)
+        return EXIT_OK
 
 
 if __name__ == "__main__":

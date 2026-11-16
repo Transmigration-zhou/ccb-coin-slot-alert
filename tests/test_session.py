@@ -116,9 +116,10 @@ def test_query_decodes_chinese_without_charset(server, cfg):
 def test_reload_discards_state_file(server, cfg):
     cfg.state_file.write_text(json.dumps({"origin_jsessionid": "sess1", "cookies": {"tranFAVOR": "rolled"}}))
     s = CcbSession(cfg, url=server.url)
-    s.reload_from_cookie_file()
+    cfg.cookie_file.write_text("JSESSIONID=sess1; tranFAVOR=repasted")
+    assert s.reload_from_cookie_file() is True
     s.query("330108")
-    assert "tranFAVOR=orig" in server.requests[0]["cookie"]
+    assert "tranFAVOR=repasted" in server.requests[0]["cookie"]
 
 
 def test_reload_updates_mtime_and_values(server, cfg):
@@ -135,3 +136,27 @@ def test_crdt_no_in_params(server, cfg):
     q = server.requests[0]["query"]
     assert q["CRDT_NO"] == ["330000200001010000"] and q["PRODUCT_ID"] == ["201947"]
     assert q["CntyAndDstc_Cd"] == ["330108"] and q["TXCODE"] == ["NYB004"]
+
+
+def test_state_ignored_when_cookie_txt_repasted_with_same_jsessionid(server, cfg):
+    server.replies.append((200, [("Set-Cookie", "tranFAVOR=rolled; Path=/")], b"var banks=[];"))
+    CcbSession(cfg, url=server.url).query("330108")
+    cfg.cookie_file.write_text("JSESSIONID=sess1; tranFAVOR=fresh; INFO=x")
+    CcbSession(cfg, url=server.url).query("330108")
+    assert "tranFAVOR=fresh" in server.requests[1]["cookie"]
+
+
+def test_reload_same_content_keeps_rotated_tokens(server, cfg):
+    server.replies.append((200, [("Set-Cookie", "tranFAVOR=rolled; Path=/")], b"var banks=[];"))
+    s = CcbSession(cfg, url=server.url)
+    s.query("330108")
+    cfg.cookie_file.write_text(cfg.cookie_file.read_text())   # 只是重新保存
+    assert s.reload_from_cookie_file() is False
+    s.query("330108")
+    assert "tranFAVOR=rolled" in server.requests[1]["cookie"]
+
+
+def test_reload_new_content_returns_true(server, cfg):
+    s = CcbSession(cfg, url=server.url)
+    cfg.cookie_file.write_text("JSESSIONID=sess2; tranFAVOR=new")
+    assert s.reload_from_cookie_file() is True

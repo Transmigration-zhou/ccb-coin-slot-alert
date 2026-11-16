@@ -88,3 +88,16 @@ def test_ensure_private_tightens_mode(tmp_path):
     p.chmod(0o644)
     assert ensure_private(p) is True and stat.S_IMODE(p.stat().st_mode) == 0o600
     assert ensure_private(p) is False
+
+
+def test_cookie_file_non_utf8_is_config_error(tmp_path):
+    p = tmp_path / "cookie.txt"
+    p.write_text("JSESSIONID=a", encoding="utf-16")
+    with pytest.raises(ConfigError, match="UTF-8"):
+        read_cookie_file(p)
+
+
+def test_cookie_file_with_bom(tmp_path):
+    p = tmp_path / "cookie.txt"
+    p.write_text("Cookie: JSESSIONID=a", encoding="utf-8-sig")
+    assert read_cookie_file(p) == {"JSESSIONID": "a"}

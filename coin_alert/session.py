@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -54,6 +55,7 @@ class CcbSession:
         self._http.headers.update(HEADERS)
         self._cookies: Dict[str, str] = {}
         self._origin_jsessionid = ""
+        self._cookie_hash = ""      # cookie.txt 解析结果的指纹，用来判断用户是否真的换了 Cookie
         self.loaded_mtime = 0.0
         self._load(use_state=True)
 
@@ -78,11 +80,19 @@ class CcbSession:
             response.encoding = response.apparent_encoding
         return response.status_code, response.text
 
-    def reload_from_cookie_file(self) -> None:
-        """用户更新了 cookie.txt：完全以它为准，丢弃落盘的滚动令牌。"""
+    def reload_from_cookie_file(self) -> bool:
+        """cookie.txt 被修改时调用。内容确实变了才以它为准（丢弃落盘的滚动令牌）并返回 True；
+        只是重新保存、内容没变则保留当前令牌并返回 False——那些令牌比文件里的更新。"""
+        mtime = self.cookie_file_mtime()
+        cookies = read_cookie_file(self._config.cookie_file)
+        if _fingerprint(cookies) == self._cookie_hash:
+            self.loaded_mtime = mtime
+            logger.info("cookie.txt 被保存但内容没变，继续使用当前令牌")
+            return False
         self._load(use_state=False)
         self.save_state()
         logger.info("已重新加载 cookie.txt")
+        return True
 
     def cookie_file_mtime(self) -> float:
         try:
@@ -97,7 +107,8 @@ class CcbSession:
         """原子写入：临时文件 → fsync → rename，权限 0600。"""
         path = str(self._config.state_file)
         tmp = path + ".tmp"
-        data = {"origin_jsessionid": self._origin_jsessionid, "cookies": self._cookies}
+        data = {"origin_jsessionid": self._origin_jsessionid, "cookie_txt_sha256": self._cookie_hash,
+                "cookies": self._cookies}
         try:
             fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "w", encoding="utf-8") as f:
@@ -115,6 +126,7 @@ class CcbSession:
         self.loaded_mtime = self.cookie_file_mtime()
         cookies = read_cookie_file(self._config.cookie_file)
         self._origin_jsessionid = cookies["JSESSIONID"]
+        self._cookie_hash = _fingerprint(cookies)
         if use_state:
             saved = self._read_state()
             if saved is not None:
@@ -134,12 +146,17 @@ class CcbSession:
         if not isinstance(raw, dict):
             logger.warning("令牌状态文件 %s 格式不对，改用 cookie.txt 中的值", path)
             return None
-        if "cookies" in raw:                       # 新格式
-            origin, cookies = raw.get("origin_jsessionid"), raw.get("cookies")
+        if "cookie_txt_sha256" in raw:             # 当前格式：cookie.txt 内容完全一致才复用
+            same = raw.get("cookie_txt_sha256") == self._cookie_hash
+            cookies = raw.get("cookies")
+        elif "cookies" in raw:                     # 早期格式：只能按 JSESSIONID 判断
+            same = raw.get("origin_jsessionid") == self._origin_jsessionid
+            cookies = raw.get("cookies")
         else:                                      # 旧版脚本写的平铺格式
-            origin, cookies = raw.get("JSESSIONID"), raw
-        if origin != self._origin_jsessionid or not isinstance(cookies, dict):
-            logger.info("cookie.txt 是新的登录会话，忽略上次保存的令牌")
+            same = raw.get("JSESSIONID") == self._origin_jsessionid
+            cookies = raw
+        if not same or not isinstance(cookies, dict):
+            logger.info("cookie.txt 已更换，忽略上次保存的令牌")
             return None
         return {str(k): "" if v is None else str(v) for k, v in cookies.items()}
 
@@ -163,3 +180,7 @@ class CcbSession:
         self._set_cookies(updated)
         if changed:
             self.save_state()
+
+
+def _fingerprint(cookies: Dict[str, str]) -> str:
+    return hashlib.sha256(json.dumps(cookies, sort_keys=True).encode("utf-8")).hexdigest()

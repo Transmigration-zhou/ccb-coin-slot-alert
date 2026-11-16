@@ -77,3 +77,8 @@ def test_alarm_ends_after_seconds(tmp_path):
     alarm = Alarm(seconds=0.3, sound="x", player=player)
     alarm.start()
     assert wait_until(lambda: not alarm.is_ringing(), 2.0)
+
+
+def test_available_reports_missing_binary(tmp_path):
+    assert notifier.available(str(tmp_path / "nope")) is False
+    assert notifier.available(script(tmp_path / "ok", "exit 0")) is True

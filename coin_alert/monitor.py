@@ -14,11 +14,11 @@ import random
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Optional, Set, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 import requests
 
-from .alerter import Alert, HealthTracker, StockTracker, format_stock_alert
+from .alerter import SOUND_BAD, SOUND_GOOD, Alert, HealthTracker, StockTracker, combine_alerts, format_stock_alert
 from .config import Config, ConfigError
 from .log import RedactFilter
 from .parser import Bank, HttpError, Ok, Redirected, Rejected, Unrecognized, parse_response
@@ -29,6 +29,7 @@ NORMAL, INVALID = "normal", "invalid"
 MAX_BACKOFF = 300
 INVALID_PROBE = 600
 TICK = 1.0
+LOOP = "监控循环"      # HealthTracker 里给"循环本身出错"用的伪区县名
 
 
 @dataclass
@@ -57,15 +58,19 @@ class Monitor:
         self._health = HealthTracker(config.failure_alert_threshold)
         self._backoff = config.interval_seconds
         self._bad_mtime: Optional[float] = None
+        self._pending: List[Alert] = []
         self.state = NORMAL
 
     # ---- 一轮 ----
 
-    def run_round(self) -> RoundOutcome:
+    def run_round(self, stop: Optional[threading.Event] = None) -> RoundOutcome:
         out = RoundOutcome()
         any_ok = False
         gap_lo, gap_hi = self._config.district_gap_seconds
         for i, (name, code) in enumerate(self._config.districts):
+            if stop is not None and stop.is_set():
+                self._flush()
+                return out          # 正在退出：不再发请求，也不再响铃
             if i > 0 and gap_hi > 0:
                 self._sleep(self._rand(gap_lo, gap_hi))
             reason = self._query_district(name, code, out)
@@ -84,11 +89,11 @@ class Monitor:
             self._emit(self._health.session_ok())
         out.all_failed = not out.session_invalid and not any_ok and bool(self._config.districts)
 
+        self._flush()
         new = self._stock.update(out.stock, out.failed)
         if new:
-            alert = format_stock_alert(self._config.city, new)
-            logger.info("发现纪念币！\n%s", alert.message)
-            self._emit(alert)
+            logger.info("发现纪念币！\n%s", "\n".join(f"{d} {b.name} 数量:{b.count} 电话:{b.phone}" for d, b in new))
+            self._send(format_stock_alert(self._config.city, new))
             self._alarm.start()
         return out
 
@@ -133,8 +138,32 @@ class Monitor:
         return None
 
     def _emit(self, alert: Optional[Alert]) -> None:
+        """本轮内的状态告警先攒着，一轮结束时合并成一条发出。"""
         if alert is not None:
+            self._log_alert(alert)
+            self._pending.append(alert)
+
+    def _flush(self) -> None:
+        if self._pending:
+            alerts, self._pending = self._pending, []
+            self._safe_notify(combine_alerts(alerts))
+
+    def _send(self, alert: Optional[Alert]) -> None:
+        if alert is not None:
+            self._log_alert(alert)
+            self._safe_notify(alert)
+
+    def _safe_notify(self, alert: Alert) -> None:
+        try:
             self._notify(alert)
+        except Exception:
+            logger.exception("发送通知时出现异常")
+
+    @staticmethod
+    def _log_alert(alert: Alert) -> None:
+        # 通知发不出去时（例如没装 terminal-notifier），日志里至少还有记录
+        level = logging.ERROR if alert.sound == SOUND_BAD else logging.INFO
+        logger.log(level, "【%s】%s", alert.title, alert.message)
 
     # ---- 节奏 ----
 
@@ -160,16 +189,21 @@ class Monitor:
         logger.warning("抓取 Cookie 后请勿在浏览器继续使用同一登录，否则令牌会被互相作废")
         while not stop.is_set():
             try:
-                outcome = self.run_round()
+                outcome = self.run_round(stop)
+                if stop.is_set():
+                    break
+                delay = self.next_delay(outcome)
+                if self.state == INVALID:
+                    logger.info("会话失效，%d 秒后再探测；更新 cookie.txt 会立即恢复", delay)
+                elif outcome.all_failed:
+                    logger.info("本轮全部失败，%d 秒后重试", delay)
+                self._wait(delay, stop)
+                self._send(self._health.district_ok(LOOP))
             except Exception:
-                logger.exception("本轮查询出现未预期的异常")
-                outcome = RoundOutcome(all_failed=True)
-            delay = self.next_delay(outcome)
-            if self.state == INVALID:
-                logger.info("会话失效，%d 秒后再探测；更新 cookie.txt 会立即恢复", delay)
-            elif outcome.all_failed:
-                logger.info("本轮全部失败，%d 秒后重试", delay)
-            self._wait(delay, stop)
+                # 兜底：任何意外都不能让监控进程悄悄退出；连续出现时按阈值告警
+                logger.exception("监控循环出现未预期的异常")
+                self._send(self._health.district_failed(LOOP, "程序异常，详见日志"))
+                self._sleep(self._config.interval_seconds)
 
     def _wait(self, delay: float, stop: threading.Event) -> None:
         """短睡眠等待，每秒检查一次停止信号和 cookie.txt 是否被修改。"""
@@ -188,12 +222,16 @@ class Monitor:
 
     def _reload_cookies(self) -> bool:
         try:
-            self._session.reload_from_cookie_file()
+            reloaded = self._session.reload_from_cookie_file()
         except ConfigError as e:
             self._bad_mtime = self._session.cookie_file_mtime()
-            logger.error("cookie.txt 已修改但无法加载：%s", e)
+            self._send(Alert(title="建行纪念币监控：cookie.txt 无法加载", message=str(e), sound=SOUND_BAD))
             return False
         self._bad_mtime = None
+        if reloaded is False:      # 只是重新保存，内容没变
+            return False
+        self._health.session_reset()
+        self._send(Alert(title="建行纪念币监控：已加载新 Cookie", message="立即开始新一轮查询", sound=SOUND_GOOD))
         self._backoff = self._config.interval_seconds
         self.state = NORMAL
         if self._redact is not None:
