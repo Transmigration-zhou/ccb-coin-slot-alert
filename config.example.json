@@ -1,5 +1,5 @@
 {
-  "_说明": "复制为 config.json 后填写；districts 可删除以监控全部区县；完整字段说明见 coin_alert/config.py 顶部",
+  "_说明": "复制为 config.json 后填写；districts 可删除以监控全部区县；字段说明见 README.md",
   "crdt_no": "请填写身份证号",
   "product_id": "201948",
   "city": "杭州",

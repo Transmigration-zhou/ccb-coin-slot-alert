@@ -1,9 +1,6 @@
-"""macOS 系统通知与响铃。
+"""macOS 系统通知（terminal-notifier）与响铃（afplay）。
 
-通知依赖 terminal-notifier（https://github.com/julienXX/terminal-notifier），安装：brew install terminal-notifier
-按名称在 PATH 中查找：终端里运行没问题；如果用 launchd / cron 启动，它们的 PATH 很精简，
-需要在 plist / crontab 里把 Homebrew 的 bin 目录（Apple Silicon 为 /opt/homebrew/bin，
-Intel 为 /usr/local/bin）加进 PATH。
+terminal-notifier 按名称在 PATH 中查找；launchd / cron 下需要自己把 Homebrew 的 bin 目录加进 PATH，见 README.md。
 """
 from __future__ import annotations
 

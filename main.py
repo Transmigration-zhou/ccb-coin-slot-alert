@@ -1,16 +1,4 @@
-"""建行纪念币预约余量监控。
-
-用法：
-    python main.py                 # 持续监控（默认）
-    python main.py once [区县]     # 单次查询；不带参数查配置中的全部区县；区县可写名称或代码
-    python main.py list [城市]     # 列出支持的城市 / 某城市的区县代码
-选项：
-    -c, --config 路径   配置文件，默认与 main.py 同目录的 config.json
-    -v, --verbose       输出 DEBUG 日志（包括每轮完整的网点列表）
-
-首次使用：复制 config.example.json 为 config.json 并填写，再把浏览器 Cookie 整行粘贴到 cookie.txt。
-字段与 Cookie 获取方法见 coin_alert/config.py 顶部说明。
-"""
+"""建行纪念币预约余量监控的命令行入口。用法见 README.md。"""
 from __future__ import annotations
 
 import argparse
