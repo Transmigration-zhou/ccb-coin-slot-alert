@@ -34,6 +34,21 @@ pip install -r requirements.txt     # 建议在虚拟环境中安装
 | `failure_alert_threshold` | 否 | 某区县连续失败多少轮后通知，默认 3 |
 | `log_file` | 否 | 日志路径（相对 `config.json` 所在目录），默认 `logs/monitor.log`，按 5MB×3 滚动；写 `null` 表示只输出到终端 |
 
+示例：监控杭州的西湖区、拱墅区、余杭区。
+
+```json
+{
+  "crdt_no": "你的身份证号",
+  "product_id": "201948",
+  "city": "杭州",
+  "districts": ["西湖区", "拱墅区", "余杭区"]
+}
+```
+
+`districts` 也可以写区县代码，例如 `["330106", "330105", "330110"]`；代码可用 `python main.py list 杭州` 查询。
+
+**修改 `config.json` 后需要重启监控才会生效**；只有 `cookie.txt` 会在运行中自动重新加载。
+
 ### cookie.txt
 
 1. 用浏览器打开预约纪念币页面并登录，按 F12 打开 Network 面板，勾选 Fetch/XHR。
