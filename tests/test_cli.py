@@ -23,7 +23,7 @@ def write_setup(tmp_path):
 
 def test_list_cities():
     r = run("list")
-    assert r.returncode == 0 and "杭州" in r.stdout
+    assert r.returncode == 0 and "浙江省" in r.stdout and "杭州市" in r.stdout and "昆明市" in r.stdout
 
 
 def test_list_city_districts():
@@ -33,7 +33,7 @@ def test_list_city_districts():
 
 def test_list_unknown_city():
     r = run("list", "火星")
-    assert r.returncode == 1 and "杭州" in r.stderr
+    assert r.returncode == 1 and "main.py list" in r.stderr
 
 
 def test_missing_config_exit_1(tmp_path):

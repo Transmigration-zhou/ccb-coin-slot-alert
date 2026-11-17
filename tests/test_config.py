@@ -18,7 +18,7 @@ def test_minimal_config_uses_defaults_and_all_districts(tmp_path):
     cfg = load_config(write_cfg(tmp_path))
     assert cfg.interval_seconds == 10 and cfg.jitter_seconds == 0
     assert cfg.district_gap_seconds == (0, 0) and cfg.failure_alert_threshold == 3
-    assert len(cfg.districts) == 7
+    assert len(cfg.districts) == 13
     assert cfg.cookie_file == tmp_path / "cookie.txt"
     assert cfg.state_file == tmp_path / ".cookie_state.json"
     assert cfg.lock_file == tmp_path / ".monitor.lock"

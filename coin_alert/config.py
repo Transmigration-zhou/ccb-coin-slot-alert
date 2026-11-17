@@ -10,7 +10,8 @@ cookie.txt —— 浏览器 Cookie 整行。获取方法：
 config.json —— 字段说明（以 _ 开头的键会被忽略，可用来写备注）：
     crdt_no                  必填  预约人身份证号，须与登录账号一致
     product_id               必填  纪念币批次 ID，每期不同，取自上面那条请求的 PRODUCT_ID 参数
-    city                     必填  城市名，须是 coin_alert/regions.py 中 REGIONS 的键
+    city                     必填  城市名，见 coin_alert/regions.py 或运行 python main.py list；
+                                   写全称（杭州市）或简称（杭州）均可
     districts                可选  要监控的区县名列表，省略则监控该城市全部区县
     interval_seconds         可选  一轮结束后等待多少秒开始下一轮，默认 10
     jitter_seconds           可选  每轮间隔额外随机增加 0~N 秒，默认 0（关闭）

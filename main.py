@@ -30,7 +30,8 @@ from coin_alert.lock import LockHeld, ProcessLock
 from coin_alert.log import setup_logging
 from coin_alert.monitor import Monitor
 from coin_alert.parser import HttpError, Ok, Redirected, Rejected, Unrecognized, parse_response
-from coin_alert.regions import UnknownRegionError, cities, districts_of, resolve_district
+from coin_alert.regions import (UnknownRegionError, canonical_city, cities_by_province, districts_of,
+                                resolve_district)
 from coin_alert.session import CcbSession
 
 logger = logging.getLogger("coin_alert.main")
@@ -53,12 +54,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def cmd_list(city: Optional[str]) -> int:
     if city is None:
-        print("支持的城市：")
-        for c in cities():
-            print(f"  {c}")
+        print("支持的城市（按省份）：")
+        for prov, names in cities_by_province().items():
+            print(f"  {prov}：{'、'.join(names)}")
         return EXIT_OK
     pairs = districts_of(city)
-    print(f"{city} 的区县代码：")
+    print(f"{canonical_city(city)} 的区县代码：")
     for name, code in pairs:
         print(f"  {name}: {code}")
     return EXIT_OK
