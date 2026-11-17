@@ -18,7 +18,7 @@ def stock(name, n):
 def make_cfg(n_districts=3, **kw):
     districts = (("上城区", "330102"), ("拱墅区", "330105"), ("西湖区", "330106"))[:n_districts]
     p = Path("/nonexistent")
-    return Config(crdt_no="330000200001010000", product_id="201947", city="杭州", districts=districts,
+    return Config(crdt_no="330000200001010000", product_id="201948", city="杭州", districts=districts,
                   cookie_file=p, state_file=p, lock_file=p, log_file=None, **kw)
 
 

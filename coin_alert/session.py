@@ -20,7 +20,8 @@ from .config import Config, read_cookie_file
 
 logger = logging.getLogger(__name__)
 
-URL = "https://jinianbi.ccb.com/tran/WCCMainPlatV5_2"
+SERVLET_NAME = "WCCMainPlatV5"
+URL = f"https://jinianbi.ccb.com/tran/{SERVLET_NAME}"
 TIMEOUT = (5, 15)   # (连接, 读取) 秒
 ROLLING_KEYS = ("tranCCBIBS1", "tranFAVOR")
 
@@ -31,7 +32,7 @@ HEADERS = {
     "Connection": "keep-alive",
     "Origin": "https://jinianbi.ccb.com",
     "Pragma": "no-cache",
-    "Referer": "https://jinianbi.ccb.com/tran/WCCMainPlatV5_2?CCB_IBSVersion=V5&SERVLET_NAME=WCCMainPlatV5_2",
+    "Referer": f"{URL}?CCB_IBSVersion=V5&SERVLET_NAME={SERVLET_NAME}",
     "Sec-Fetch-Dest": "empty",
     "Sec-Fetch-Mode": "cors",
     "Sec-Fetch-Site": "same-origin",
@@ -65,7 +66,7 @@ class CcbSession:
         """查询一个区县，返回 (HTTP 状态码, 正文)。网络异常原样抛出 requests.RequestException。"""
         params = {
             "CCB_IBSVersion": "V5",
-            "SERVLET_NAME": "WCCMainPlatV5_2",
+            "SERVLET_NAME": SERVLET_NAME,
             "isAjaxRequest": "true",
             "TXCODE": "NYB004",
             "CntyAndDstc_Cd": district_code,

@@ -15,7 +15,7 @@ def run(*args):
 
 def write_setup(tmp_path):
     cfg = tmp_path / "config.json"
-    cfg.write_text(json.dumps({"crdt_no": "330000200001010000", "product_id": "201947",
+    cfg.write_text(json.dumps({"crdt_no": "330000200001010000", "product_id": "201948",
                                "city": "杭州", "log_file": None}))
     (tmp_path / "cookie.txt").write_text("JSESSIONID=sess1; tranFAVOR=orig")
     return cfg

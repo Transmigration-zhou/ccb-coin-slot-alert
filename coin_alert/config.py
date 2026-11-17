@@ -2,7 +2,7 @@
 
 cookie.txt —— 浏览器 Cookie 整行。获取方法：
     浏览器登录 https://jinianbi.ccb.com 后按 F12 → Network → 勾选 Fetch/XHR，
-    找到 WCCMainPlatV5_2?...TXCODE=NYB004 这条请求，在 Headers 里复制 Cookie 整行粘贴进来
+    找到 WCCMainPlatV5?...TXCODE=NYB004 这条请求，在 Headers 里复制 Cookie 整行粘贴进来
     （带不带开头的 "Cookie: " 都可以；# 开头的行视为注释）。
     更新该文件后，运行中的监控会自动重新加载，无需重启。
     注意：抓完 Cookie 后不要在同一浏览器会话里继续操作，否则令牌会被互相作废。

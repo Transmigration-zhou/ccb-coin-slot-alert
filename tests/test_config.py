@@ -5,7 +5,7 @@ import pytest
 
 from coin_alert.config import ConfigError, ensure_private, load_config, parse_cookie_text, read_cookie_file
 
-BASE = {"crdt_no": "330000200001010000", "product_id": "201947", "city": "杭州"}
+BASE = {"crdt_no": "330000200001010000", "product_id": "201948", "city": "杭州"}
 
 
 def write_cfg(tmp_path, data=None, raw=None):

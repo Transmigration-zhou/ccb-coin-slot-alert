@@ -34,7 +34,7 @@ class FakeServer:
                 pass
 
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self.url = f"http://127.0.0.1:{self.httpd.server_port}/tran/WCCMainPlatV5_2"
+        self.url = f"http://127.0.0.1:{self.httpd.server_port}/tran/WCCMainPlatV5"
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
 
@@ -48,7 +48,7 @@ def server():
 @pytest.fixture
 def cfg(tmp_path):
     (tmp_path / "cookie.txt").write_text("JSESSIONID=sess1; tranFAVOR=orig; INFO=x")
-    return Config(crdt_no="330000200001010000", product_id="201947", city="杭州",
+    return Config(crdt_no="330000200001010000", product_id="201948", city="杭州",
                   districts=(("滨江区", "330108"),), cookie_file=tmp_path / "cookie.txt",
                   state_file=tmp_path / ".cookie_state.json", lock_file=tmp_path / ".monitor.lock",
                   log_file=None)
@@ -134,8 +134,10 @@ def test_reload_updates_mtime_and_values(server, cfg):
 def test_crdt_no_in_params(server, cfg):
     CcbSession(cfg, url=server.url).query("330108")
     q = server.requests[0]["query"]
-    assert q["CRDT_NO"] == ["330000200001010000"] and q["PRODUCT_ID"] == ["201947"]
+    assert q["CRDT_NO"] == ["330000200001010000"] and q["PRODUCT_ID"] == ["201948"]
     assert q["CntyAndDstc_Cd"] == ["330108"] and q["TXCODE"] == ["NYB004"]
+    assert q["SERVLET_NAME"] == ["WCCMainPlatV5"] and q["CCB_IBSVersion"] == ["V5"]
+    assert q["isAjaxRequest"] == ["true"] and q["JNB_DATE_TYPE"] == ["0"]
 
 
 def test_state_ignored_when_cookie_txt_repasted_with_same_jsessionid(server, cfg):
