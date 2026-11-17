@@ -1,4 +1,5 @@
 import json
+import logging
 import stat
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -162,3 +163,11 @@ def test_reload_new_content_returns_true(server, cfg):
     s = CcbSession(cfg, url=server.url)
     cfg.cookie_file.write_text("JSESSIONID=sess2; tranFAVOR=new")
     assert s.reload_from_cookie_file() is True
+
+
+def test_rotation_debug_log_hides_token_value(server, cfg, caplog):
+    server.replies.append((200, [("Set-Cookie", "tranFAVOR=SECRETTOKEN123; Path=/")], b"var banks=[];"))
+    with caplog.at_level(logging.DEBUG, logger="coin_alert.session"):
+        CcbSession(cfg, url=server.url).query("330108")
+    assert "令牌已轮换: tranFAVOR" in caplog.text
+    assert "SECRET" not in caplog.text

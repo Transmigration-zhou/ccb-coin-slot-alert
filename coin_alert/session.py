@@ -175,7 +175,7 @@ class CcbSession:
             value = "" if c.value is None else c.value
             if updated.get(c.name) != value:
                 if c.name in ROLLING_KEYS:
-                    logger.debug("令牌已轮换: %s -> %s...", c.name, value[:8])
+                    logger.debug("令牌已轮换: %s", c.name)
                 updated[c.name] = value
         changed = updated != self._cookies
         self._set_cookies(updated)
