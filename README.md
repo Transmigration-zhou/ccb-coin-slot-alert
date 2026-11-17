@@ -36,7 +36,7 @@ pip install -r requirements.txt     # 建议在虚拟环境中安装
 
 ### cookie.txt
 
-1. 用浏览器登录 https://jinianbi.ccb.com ，按 F12 打开 Network 面板，勾选 Fetch/XHR。
+1. 用浏览器打开预约纪念币页面并登录，按 F12 打开 Network 面板，勾选 Fetch/XHR。
 2. 在页面上查询一次区县，找到 `WCCMainPlatV5?...TXCODE=NYB004` 这条请求。
 3. 在它的 Request Headers 里复制 Cookie 整行，粘贴进 `cookie.txt`。开头带不带 `Cookie: ` 都行；以 `#` 开头的行视为注释。
 
